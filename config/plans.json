@@ -1,0 +1,44 @@
+{
+  "_comment": "Тарифы ЗаказРадара. null — без ограничений. searches — бесплатные поиски на всё время (не в день). radar_delay_min — задержка уведомлений Радара. Цена в Telegram Stars. После правки — перезапуск бота.",
+  "plans": {
+    "free": {
+      "title": "FREE",
+      "tier": 0,
+      "price_stars": 0,
+      "period_days": 0,
+      "searches": 3,
+      "radar_delay_min": 30,
+      "max_categories": 1,
+      "max_keywords": 3,
+      "notifications_per_day": 10,
+      "budget_filter": false,
+      "custom_templates": false
+    },
+    "pro_week": {
+      "title": "PRO неделя",
+      "tier": 1,
+      "price_stars": 49,
+      "period_days": 7,
+      "searches": null,
+      "radar_delay_min": 0,
+      "max_categories": null,
+      "max_keywords": null,
+      "notifications_per_day": null,
+      "budget_filter": true,
+      "custom_templates": true
+    },
+    "pro": {
+      "title": "PRO месяц",
+      "tier": 1,
+      "price_stars": 149,
+      "period_days": 30,
+      "searches": null,
+      "radar_delay_min": 0,
+      "max_categories": null,
+      "max_keywords": null,
+      "notifications_per_day": null,
+      "budget_filter": true,
+      "custom_templates": true
+    }
+  }
+}
