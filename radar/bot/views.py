@@ -322,7 +322,11 @@ PRO_PERKS = ("📡 Радар — новые заказы под твои фил
 
 def pro_screen(access: Access, plans: list[Plan], payments: bool, free: Plan) -> Screen:
     if access.is_admin:
-        return ("💎 <b>PRO · навсегда (админ)</b>\n\nТебе доступно всё без оплаты.\n\n" + PRO_PERKS, kb([home_btn()]))
+        return ("💎 <b>PRO · навсегда (админ)</b>\n\nТебе доступно всё без оплаты. Ниже — экран подписки, "
+                "как его видят пользователи (кнопки рабочие, оплата будет настоящей).\n\n"
+                f"Без подписки — {free.searches} бесплатных поиска на всё время (не в день), Радар не работает.\n\n"
+                "<b>С подпиской:</b>\n" + PRO_PERKS + "\n\n" + prices_text(plans),
+                kb(*(pay_buttons(plans) if payments else []), [home_btn()]))
     head = (f"💎 <b>У тебя PRO до {fmt_date(access.ends_at)}</b>\n\nПродли заранее — дни добавятся к текущему сроку.\n\n"
             if access.is_pro else
             f"💎 <b>Подписка PRO</b>\n\nБез подписки — {free.searches} бесплатных поиска на всё время (не в день), "

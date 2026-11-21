@@ -88,6 +88,7 @@ async def test_admin_has_pro_forever_without_payment(tg):
     assert "PRO · навсегда (админ)" in menu.text
     pro = await admin.press("PRO · навсегда")
     assert "без оплаты" in pro.text and not admin.session.invoices
+    assert "PRO год — 990 ⭐" in pro.text and any(b.text == "⭐ PRO год — 990 ⭐" for b in pro.buttons)
     assert await admin.svc.usage.remaining(ADMIN) is None
     assert await admin.svc.db.scalar("SELECT COUNT(*) FROM subscriptions") == 0
 
