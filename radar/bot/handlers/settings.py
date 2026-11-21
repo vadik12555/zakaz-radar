@@ -18,7 +18,7 @@ from radar.matching import parse_phrases
 from radar.services import Services
 from radar.templates import default_template_text
 
-BUDGET_LOCKED = "🔒 Фильтр по бюджету — в 💎 PRO. На FREE приходят заказы с любым бюджетом."
+BUDGET_LOCKED = "🔒 Фильтр по бюджету — в 💎 PRO. Без подписки приходят заказы с любым бюджетом."
 
 
 async def _filters(target, svc: Services, user_id: int, state: FSMContext | None = None) -> None:
@@ -76,7 +76,7 @@ async def msg_words(message: Message, svc: Services, user: User, state: FSMConte
     note = ""
     if kind == "kw" and plan.max_keywords is not None and len(words) > plan.max_keywords:
         words = words[: plan.max_keywords]
-        note = f"На FREE — до {plan.max_keywords} слов, сохранил первые. В 💎 PRO — без лимита.\n"
+        note = f"Без подписки — до {plan.max_keywords} слов, сохранил первые. В 💎 PRO — без лимита.\n"
     await svc.db.update_user(user.id, **{"keywords" if kind == "kw" else "excludes": words})
     await state.set_state(None)
     await message.answer(note + "✅ Сохранено.")
@@ -99,7 +99,7 @@ async def cb_cat(cb: CallbackQuery, callback_data: Cat, svc: Services, user: Use
         cats.remove(cid)
     elif plan.max_categories is not None and len(cats) >= plan.max_categories:
         cats = [cid]
-        await cb.answer(f"На FREE — {plan.max_categories} категория: заменил выбор. В 💎 PRO — все сразу.")
+        await cb.answer(f"Без подписки — {plan.max_categories} категория: заменил выбор. В 💎 PRO — все сразу.")
     else:
         cats.append(cid)
     await svc.db.update_user(user.id, categories=cats)

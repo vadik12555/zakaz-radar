@@ -46,6 +46,10 @@ async def cb_radar(cb: CallbackQuery, svc: Services, user: User, state: FSMConte
     user = await svc.db.get_user(user.id)
     if not user.onboarded:
         return await home_or_onboarding(cb, svc, user, state)
+    if not (await svc.billing.plan(user.id)).radar:
+        await cb.answer("📡 Радар — по подписке: новые заказы будут сами приходить в чат")
+        from radar.bot.handlers.billing import _pro
+        return await _pro(cb, svc, user)
     on = 0 if user.radar_on else 1
     await svc.db.update_user(user.id, radar_on=on)
     await cb.answer("📡 Радар включён — новые заказы придут сюда" if on else "📡 Радар выключен")
@@ -83,7 +87,7 @@ async def msg_onboarding_keywords(message: Message, svc: Services, user: User, s
     note = ""
     if plan.max_keywords is not None and len(words) > plan.max_keywords:
         words = words[: plan.max_keywords]
-        note = f"На FREE — до {plan.max_keywords} слов, сохранил первые: {', '.join(words)}. В 💎 PRO — без лимита.\n\n"
+        note = f"Без подписки — до {plan.max_keywords} слов, сохранил первые: {', '.join(words)}. В 💎 PRO — без лимита.\n\n"
     await svc.db.update_user(user.id, keywords=words)
     await state.set_state(None)
     text, markup = views.budget_screen("ob", await svc.db.get_user(user.id), plan)
@@ -96,7 +100,8 @@ async def finish_onboarding(cb: CallbackQuery, svc: Services, user_id: int) -> N
     user = await svc.db.get_user(user_id)
     plan = await svc.billing.plan(user_id)
     found = await svc.orders.matching(effective_filters(user, plan))
-    await show(cb, views.onboarding_done(found[:PREVIEW], len(found)))
+    remaining = await svc.usage.remaining(user_id)
+    await show(cb, views.onboarding_done(found[:PREVIEW], len(found), radar=plan.radar, remaining=remaining))
 
 
 # --- help, stats, legal ----------------------------------------------------------------------------------

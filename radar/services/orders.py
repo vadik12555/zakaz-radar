@@ -174,7 +174,7 @@ class OrderService:
         return [User(**dict(r)) for r in rows]
 
     async def queue_radar(self, order_ids: list[int]) -> int:
-        """Match new orders against every Radar user; FREE users get them radar_delay_min later."""
+        """Match new orders against every subscriber with Radar on (radar_delay_min later, if a plan sets one)."""
         orders = [o for o in await self.many(order_ids)
                   if o["published_at"] >= ago_iso(hours=RADAR_MAX_AGE_HOURS)]
         if not orders:
@@ -182,6 +182,8 @@ class OrderService:
         queued = 0
         for user in await self.radar_users():
             plan = await self.billing.plan(user.id)
+            if not plan.radar:
+                continue  # Radar is for subscribers only
             f = effective_filters(user, plan)
             for o in orders:
                 if not matches(o, f):

@@ -11,20 +11,19 @@ async def test_onboarding_shows_three_fresh_orders(tg):
     assert "Шаг 1 из 3" in first.text
     msg = await tg.press("Программирование")
     assert "✅ 💻 Программирование" in buttons(msg)
-    msg = await tg.press("Дизайн")  # FREE: one category, the new choice replaces the old
-    assert "✅ 🎨 Дизайн" in buttons(msg) and "✅ 💻 Программирование" not in buttons(msg)
-    assert any("1 категория" in a for a in tg.session.alerts)
+    msg = await tg.press("Дизайн")  # without a subscription filters are not limited
+    assert "✅ 🎨 Дизайн" in buttons(msg) and "✅ 💻 Программирование" in buttons(msg)
     msg = await tg.press("Далее")
     assert "Шаг 2 из 3" in msg.text
-    msg = await tg.send("логотип, иллюстрация, баннер, визитка")  # 4 words on FREE → first 3 kept
-    assert "Шаг 3 из 3" in msg.text and "до 3 слов" in msg.text
-    alerts = len(tg.session.alerts)
-    await tg.press("от 10 000")  # locked on FREE: clear alert, screen stays
-    assert "PRO" in tg.session.alerts[alerts] and "Шаг 3 из 3" in tg.last.text
-    done = await tg.press("Любой")
-    assert "Готово" in done.text
+    msg = await tg.send("логотип, иллюстрация, баннер, визитка")
+    assert "Шаг 3 из 3" in msg.text and "FREE" not in msg.text
+    done = await tg.press("от 10 000")
+    assert "Готово" in done.text and "Радар — новые заказы сами в чат — работает по подписке" in done.text
+    assert "3 поиска бесплатно" in done.text
+    assert any(b.text.startswith("⚡ Подключить Радар") and b.style == ButtonStyle.SUCCESS for b in done.buttons)
     user = await tg.svc.db.get_user(tg.user["id"])
-    assert user.onboarded and user.radar_on and user.cats == [3] and len(user.kws) == 3
+    assert user.onboarded and user.radar_on and sorted(user.cats) == [3, 5] and len(user.kws) == 4
+    assert user.min_budget == 10000
     assert await tg.svc.db.scalar("SELECT COUNT(*) FROM events WHERE name IN ('start', 'filters')") == 2
 
 
@@ -44,20 +43,28 @@ async def test_free_menu_buttons_and_colors(tg):
     menu = await onboard(tg)
     menu = await tg.press("Меню")
     first = menu.buttons[0]
-    assert first.text == "🎁 3 бесплатных поиска" and first.style == ButtonStyle.DANGER
+    assert first.text == "🎁 3 поиска бесплатно" and first.style == ButtonStyle.DANGER
+    assert "FREE" not in menu.text and "на всё время, не в день" in menu.text
     by_text = {b.text: b for b in menu.buttons}
     assert by_text["⚙️ Фильтры"].style == ButtonStyle.PRIMARY
-    assert by_text["📡 Радар: вкл ✅"].style == ButtonStyle.PRIMARY
-    assert by_text["⚡ Получать заказы мгновенно"].style == ButtonStyle.SUCCESS
+    assert by_text["📡 Радар: 🔒 по подписке"].style == ButtonStyle.PRIMARY
+    assert by_text["⚡ Подключить Радар — от 49 ⭐"].style == ButtonStyle.SUCCESS
     assert by_text["❓ Помощь"].style is None
-    pro = await tg.press("💎 PRO")
+    pro = await tg.press("💎 Подписка")
+    assert "FREE" not in pro.text and "на всё время (не в день)" in pro.text
+    assert "PRO год — 990 ⭐ (≈ 81 ⭐ в месяц)" in pro.text
     assert all(b.style == ButtonStyle.SUCCESS for b in pro.buttons if b.text.startswith("⭐"))
-    assert [b.text for b in pro.buttons if b.text.startswith("⭐")] == ["⭐ PRO неделя — 49 ⭐", "⭐ PRO месяц — 149 ⭐"]
+    assert [b.text for b in pro.buttons if b.text.startswith("⭐")] == [
+        "⭐ PRO неделя — 49 ⭐", "⭐ PRO месяц — 149 ⭐", "⭐ PRO год — 990 ⭐"]
 
 
 async def test_radar_switch(tg):
     await tg.svc.orders.poll_once()
     await onboard(tg)
+    menu = await tg.press("Меню")
+    pro = await tg.press("📡 Радар: 🔒 по подписке")  # without a subscription: the subscription screen
+    assert "Подписка PRO" in pro.text and "по подписке" in tg.session.alerts[-1]
+    await tg.svc.billing.grant(tg.user["id"], 7)
     menu = await tg.press("Меню")
     menu = await tg.press("📡 Радар: вкл")
     assert "📡 Радар: выкл" in buttons(menu)
@@ -72,7 +79,7 @@ async def test_three_free_searches_idempotent_then_paywall(tg, feed):
     await tg.svc.orders.poll_once()
     await onboard(tg)
     await tg.press("Меню")
-    await tg.press("бесплатных поиска")
+    await tg.press("поиска бесплатно")
     res = await tg.press("По моим фильтрам")
     assert "Найдено: 5" in res.text and "Бесплатных поисков осталось: 2" in res.text
     await tg.press("Новый поиск")
@@ -106,7 +113,7 @@ async def test_results_paging_and_card_actions(tg, feed):
     await tg.svc.orders.poll_once()
     await onboard(tg, keywords="бот")
     await tg.press("Меню")
-    await tg.press("бесплатных поиска")
+    await tg.press("поиска бесплатно")
     res = await tg.press("По моим фильтрам")
     assert "Найдено: 8" in res.text and "1 / 2" in buttons(res)
     alerts = len(tg.session.alerts)
@@ -150,10 +157,8 @@ async def test_profile_goes_into_response(tg, feed):
     prof = await tg.press("✏️ Портфолио")
     prof = await tg.send("https://github.com/ivan")
     assert "Иван" in prof.text and "github.com/ivan" in prof.text
-    locked = await tg.press("Свой шаблон отклика")  # FREE: own template is PRO
-    assert "в 💎 PRO" in locked.text
     await tg.send("/start")
-    await tg.press("бесплатных поиска")
+    await tg.press("поиска бесплатно")
     await tg.press("По моим фильтрам")
     await tg.press("1. Парсер Avito")
     tpl = await tg.press("Шаблон отклика")
@@ -189,12 +194,7 @@ async def test_filters_screen_actions(tg):
     assert "курсовая, диплом" in flt.text
     flt = await tg.press("Тихие часы: выкл")
     assert "🌙 Тихие часы: вкл" in buttons(flt)
-    alerts = len(tg.session.alerts)
-    await tg.press("Без бюджета")  # FREE: locked
-    assert "PRO" in tg.session.alerts[alerts]
-    await tg.svc.billing.grant(tg.user["id"], 7)
-    flt = await tg.send("/filters")
-    flt = await tg.press("Без бюджета")
+    flt = await tg.press("Без бюджета")  # budget filters work without a subscription
     assert "скрывать" in flt.text
     await tg.press("💰 Бюджет")
     flt = await tg.press("от 30 000")

@@ -91,7 +91,7 @@ def plan_line(access: Access, remaining: int | None) -> str:
     if access.is_pro:
         return f"💎 PRO до {fmt_date(access.ends_at)}"
     limit = access.plan.searches or 0
-    return f"FREE · бесплатных поисков: {remaining} из {limit}"
+    return f"🎁 Бесплатных поисков: {remaining} из {limit} (на всё время, не в день)"
 
 
 def pro_button_text(access: Access) -> str:
@@ -99,15 +99,21 @@ def pro_button_text(access: Access) -> str:
         return "💎 PRO · навсегда (админ)"
     if access.is_pro:
         return f"💎 PRO до {fmt_date(access.ends_at)}"
-    return "💎 PRO"
+    return "💎 Подписка"
 
 
 def instant_btn() -> Btn:
-    return b("⚡ Получать заказы мгновенно", Menu(to="pro"), SUCCESS)
+    return b("⚡ Подключить Радар — от 49 ⭐", Menu(to="pro"), SUCCESS)
 
 
 def free_searches_text(n: int) -> str:
-    return f"🎁 {n} {plural(n, 'бесплатный поиск', 'бесплатных поиска', 'бесплатных поисков')}"
+    return f"🎁 {n} {plural(n, 'поиск', 'поиска', 'поисков')} бесплатно"
+
+
+def radar_label(user: User, access: Access) -> str:
+    if not access.plan.radar:
+        return "🔒 по подписке"
+    return "вкл ✅" if user.radar_on else "выкл"
 
 
 def order_lines(orders: list[dict], start: int = 1) -> str:
@@ -125,8 +131,8 @@ def order_buttons(orders: list[dict], src: str, ref: int, page: int, start: int 
 # --- main menu & onboarding -----------------------------------------------------------------------
 
 def main_menu(user: User, access: Access, remaining: int | None, filters) -> Screen:
-    radar = "вкл ✅" if user.radar_on else "выкл"
-    delay = access.plan.radar_delay_min
+    radar = radar_label(user, access)
+    delay = access.plan.radar_delay_min if access.plan.radar else 0
     text = (f"📡 <b>ЗаказРадар</b> — свежие заказы с FL.ru под твои фильтры\n\n"
             f"📂 {h(cats_label(filters.categories))}\n"
             f"🔑 {words_label(filters.keywords, 'без ключевых слов')}\n"
@@ -153,7 +159,7 @@ def categories_screen(ctx: str, selected: list[int], plan: Plan) -> Screen:
         head = "<b>Шаг 1 из 3 · 📂 Категории</b>\n\nКакие заказы тебе присылать?"
     else:
         head = "<b>📂 Категории</b>"
-    limit = ("\nFREE — 1 категория (новый выбор заменит старый). В 💎 PRO — все сразу." if one
+    limit = ("\nБез подписки — 1 категория (новый выбор заменит старый). В 💎 PRO — все сразу." if one
              else "\nМожно выбрать сколько угодно.")
     sel = f"\n\nВыбрано: {h(cats_label(selected)) if selected else 'ничего'}"
     buttons = [b(("✅ " if cid in selected else "") + label, Cat(ctx=ctx, id=cid))
@@ -167,7 +173,7 @@ def categories_screen(ctx: str, selected: list[int], plan: Plan) -> Screen:
 
 
 def onboarding_keywords(current: list[str], plan: Plan) -> Screen:
-    limit = f" До {plan.max_keywords} слов на FREE." if plan.max_keywords else ""
+    limit = f" До {plan.max_keywords} слов без подписки." if plan.max_keywords else ""
     return ("<b>Шаг 2 из 3 · 🔑 Ключевые слова</b>\n\n"
             "Напиши слова или фразы через запятую, например:\n<code>telegram бот, парсер, python</code>\n\n"
             "Пришлю заказы, где есть хотя бы одно из них." + limit +
@@ -178,7 +184,7 @@ def onboarding_keywords(current: list[str], plan: Plan) -> Screen:
 def budget_screen(ctx: str, user: User, plan: Plan) -> Screen:
     locked = not plan.budget_filter
     head = "<b>Шаг 3 из 3 · 💰 Минимальный бюджет</b>" if ctx == "ob" else "<b>💰 Бюджет</b>"
-    note = "\n\n🔒 Фильтр по бюджету — в 💎 PRO. На FREE приходят заказы с любым бюджетом." if locked else \
+    note = "\n\n🔒 Фильтр по бюджету — в 💎 PRO. Без подписки приходят заказы с любым бюджетом." if locked else \
         f"\n\nСейчас: {budget_label(user.min_budget, user.show_no_budget)}"
     current = 0 if locked else (-1 if (not user.show_no_budget and not user.min_budget) else user.min_budget)
     rows = []
@@ -190,16 +196,20 @@ def budget_screen(ctx: str, user: User, plan: Plan) -> Screen:
     return head + note, kb(*rows)
 
 
-def onboarding_done(orders: list[dict], total: int) -> Screen:
+def onboarding_done(orders: list[dict], total: int, radar: bool = True, remaining: int | None = None) -> Screen:
+    if radar:
+        head = "✅ <b>Готово!</b> Фильтры сохранены, 📡 Радар включён — новые заказы придут сюда."
+        extra = None
+    else:
+        head = ("✅ <b>Готово!</b> Фильтры сохранены.\n\n📡 Радар — новые заказы сами в чат — работает по подписке."
+                + (f"\n🎁 А пока у тебя {free_searches_text(remaining)[2:]} по базе заказов." if remaining else ""))
+        extra = [instant_btn()]
     if not orders:
-        return ("✅ <b>Готово!</b> Фильтры сохранены, 📡 Радар включён.\n\n"
-                "За последние 14 дней под эти фильтры заказов не нашлось. Радар пришлёт новые, как только появятся. "
-                "Можно расширить фильтры.",
-                kb([b("⚙️ Фильтры", Menu(to="filters"), PRIMARY)], [home_btn()]))
+        return (head + "\n\nЗа последние 14 дней под эти фильтры заказов не нашлось. Можно расширить фильтры.",
+                kb([b("⚙️ Фильтры", Menu(to="filters"), PRIMARY)], extra, [home_btn()]))
     more = f"\n\nВсего подходящих за 14 дней: <b>{total}</b>." if total > len(orders) else ""
-    return ("✅ <b>Готово!</b> Фильтры сохранены, 📡 Радар включён — новые заказы придут сюда.\n\n"
-            "Вот свежие заказы под тебя:\n\n" + order_lines(orders) + more,
-            kb(*order_buttons(orders, "p", 0, 0), [home_btn()]))
+    return (head + "\n\nВот свежие заказы под тебя:\n\n" + order_lines(orders) + more,
+            kb(*order_buttons(orders, "p", 0, 0), extra, [home_btn()]))
 
 
 # --- order card ----------------------------------------------------------------------------------------
@@ -265,8 +275,8 @@ def search_home(access: Access, remaining: int | None, total_orders: int, filter
             f"за 14 дней.\n\n🎯 По фильтрам: {h(cats_label(filters.categories))} · "
             f"{words_label(filters.keywords, 'без ключевых слов')}\n✏️ Или свой запрос: любые слова.")
     if not access.is_pro:
-        text += (f"\n\n🎁 Осталось {remaining} из {access.plan.searches} бесплатных поисков. "
-                 "Пустой поиск и повтор того же поиска не списываются.")
+        text += (f"\n\n🎁 Осталось {remaining} из {access.plan.searches} бесплатных поисков — это на всё время, "
+                 "не в день. Пустой поиск и повтор того же поиска не списываются.")
     return text, kb([b("🎯 По моим фильтрам", Srch(act="f"), PRIMARY)], [b("✏️ Свой запрос", Srch(act="q"))],
                     [b("⚙️ Фильтры", Menu(to="filters")), home_btn()])
 
@@ -305,12 +315,9 @@ def pay_buttons(plans: list[Plan]) -> list[list[Btn]]:
     return [[b(f"⭐ {p.title} — {p.price_stars} ⭐", Pay(plan=p.code), SUCCESS)] for p in plans]
 
 
-PRO_PERKS = ("⚡ Радар мгновенно — заказ приходит раньше, чем FREE-пользователям\n"
+PRO_PERKS = ("📡 Радар — новые заказы под твои фильтры сами приходят в чат, сразу как появились на FL.ru\n"
              "🔎 Безлимитный поиск по базе за 14 дней\n"
-             "📂 Все категории и ключевые слова без лимита\n"
-             "💰 Фильтр по бюджету\n"
-             "🔔 Уведомления без лимита\n"
-             "✍️ Свои шаблоны откликов")
+             "🔔 Уведомления без лимита, тихие часы по желанию")
 
 
 def pro_screen(access: Access, plans: list[Plan], payments: bool, free: Plan) -> Screen:
@@ -318,20 +325,31 @@ def pro_screen(access: Access, plans: list[Plan], payments: bool, free: Plan) ->
         return ("💎 <b>PRO · навсегда (админ)</b>\n\nТебе доступно всё без оплаты.\n\n" + PRO_PERKS, kb([home_btn()]))
     head = (f"💎 <b>У тебя PRO до {fmt_date(access.ends_at)}</b>\n\nПродли заранее — дни добавятся к текущему сроку.\n\n"
             if access.is_pro else
-            f"💎 <b>PRO</b>\n\nСейчас FREE: {free.searches} поиска всего, Радар с задержкой {free.radar_delay_min} мин, "
-            f"{free.max_categories} категория, до {free.max_keywords} слов, до {free.notifications_per_day} "
-            "уведомлений в день.\n\n<b>С PRO:</b>\n")
+            f"💎 <b>Подписка PRO</b>\n\nБез подписки — {free.searches} бесплатных поиска на всё время (не в день), "
+            "Радар не работает.\n\n<b>С подпиской:</b>\n")
     if not payments:
         return (head + PRO_PERKS + "\n\nОплата временно недоступна. Напиши в поддержку — поможем.",
                 kb([b("💬 Поддержка", Menu(to="support"))], [home_btn()]))
-    return head + PRO_PERKS + "\n\nОплата звёздами Telegram, без автопродления.", kb(*pay_buttons(plans), [home_btn()])
+    return (head + PRO_PERKS + "\n\n" + prices_text(plans) + "\n\nОплата звёздами Telegram, без автопродления.",
+            kb(*pay_buttons(plans), [home_btn()]))
+
+
+def prices_text(plans: list[Plan]) -> str:
+    lines = []
+    for p in plans:
+        line = f"• {h(p.title)} — {p.price_stars} ⭐"
+        if p.period_days >= 60:
+            line += f" (≈ {round(p.price_stars * 30 / p.period_days)} ⭐ в месяц)"
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def paywall(week_count: int, plans: list[Plan], payments: bool) -> Screen:
     text = ("🎁 <b>Бесплатные поиски закончились</b>\n\n"
             f"За последнюю неделю под твои фильтры нашлось <b>{week_count}</b> "
             f"{plural(week_count, 'заказ', 'заказа', 'заказов')}.\n\n"
-            "С 💎 PRO — безлимитный поиск и Радар без задержки.")
+            "С подпиской 💎 PRO — безлимитный поиск и 📡 Радар: новые заказы сами приходят в чат.\n\n"
+            + prices_text(plans))
     if not payments:
         return (text + "\n\nОплата временно недоступна — напиши в поддержку.",
                 kb([b("💬 Поддержка", Menu(to="support"))], [home_btn()]))
@@ -339,14 +357,14 @@ def paywall(week_count: int, plans: list[Plan], payments: bool) -> Screen:
 
 
 def free_template_locked() -> Screen:
-    return ("✍️ <b>Свой шаблон отклика — в 💎 PRO</b>\n\nНа FREE работает стандартный шаблон: он уже подставляет "
+    return ("✍️ <b>Свой шаблон отклика — в 💎 PRO</b>\n\nБез подписки работает стандартный шаблон: он уже подставляет "
             "название заказа и данные из профиля.",
             kb([instant_btn()], [b("← Профиль", Menu(to="profile"))]))
 
 
 def invoice_texts(plan: Plan) -> tuple[str, str]:
     return (f"ЗаказРадар {plan.title}",
-            f"PRO на {plan.period_days} дн.: Радар без задержки, безлимитный поиск, все категории, фильтр по бюджету.")
+            f"PRO на {plan.period_days} дн.: Радар — новые заказы FL.ru сразу в чат, безлимитный поиск.")
 
 
 def payment_ok(plan: Plan, ends_at: str) -> Screen:
@@ -391,7 +409,7 @@ def filters_screen(user: User, access: Access) -> Screen:
 def words_screen(kind: str, items: list[str], plan: Plan) -> Screen:
     if kind == "kw":
         title, hint = "🔑 <b>Ключевые слова</b>", "Пришлю заказы, где есть хотя бы одно слово или фраза."
-        limit = f" FREE — до {plan.max_keywords} слов." if plan.max_keywords else ""
+        limit = f" Без подписки — до {plan.max_keywords} слов." if plan.max_keywords else ""
         example = "telegram бот, парсер"
     else:
         title, hint, limit, example = ("🚫 <b>Исключения</b>", "Заказы с этими словами не придут и не попадут в поиск.",
@@ -481,7 +499,7 @@ def terms_screen(contact: str) -> Screen:
             "1. Бот показывает заказы из публичной RSS-ленты FL.ru. Мы не отвечаем за содержание заказов и не "
             "гарантируем, что заказчик выберет тебя.\n"
             "2. Бот ничего не отправляет на FL.ru: отклик ты пишешь и отправляешь сам.\n"
-            "3. PRO оплачивается звёздами Telegram на 7 или 30 дней, без автопродления. Повторная покупка добавляет дни.\n"
+            "3. PRO оплачивается звёздами Telegram на 7, 30 или 365 дней, без автопродления. Повторная покупка добавляет дни.\n"
             "4. Возврат — по обращению в /support"
             + (f" или {h(contact)}" if contact else "") + ", если доступ не работал по нашей вине.\n"
             "5. Сервис предоставляется «как есть»; лента FL.ru может временно не отвечать.",
@@ -504,7 +522,7 @@ def support_ask() -> Screen:
 # --- radar notifications ------------------------------------------------------------------------------------------
 
 def daily_limit_note(limit: int) -> Screen:
-    return (f"🔔 Сегодня пришло {limit} {plural(limit, 'уведомление', 'уведомления', 'уведомлений')} — это лимит FREE.\n\n"
+    return (f"🔔 Сегодня пришло {limit} {plural(limit, 'уведомление', 'уведомления', 'уведомлений')} — это дневной лимит.\n\n"
             "Остальные подходящие заказы за сегодня найдутся в 🔎 Поиске. С 💎 PRO они придут сразу и без лимита.",
             kb([instant_btn()], [home_btn()]))
 

@@ -28,6 +28,7 @@ class Plan:
     budget_filter: bool
     custom_templates: bool
     hidden: bool = False
+    radar: bool = True  # False: no Radar notifications (users without a subscription)
 
     @property
     def is_paid(self) -> bool:
@@ -69,7 +70,7 @@ def load_product_config(path: Path) -> ProductConfig:
             radar_delay_min=int(p.get("radar_delay_min", 0)), max_categories=_opt(p.get("max_categories")),
             max_keywords=_opt(p.get("max_keywords")), notifications_per_day=_opt(p.get("notifications_per_day")),
             budget_filter=bool(p.get("budget_filter", False)), custom_templates=bool(p.get("custom_templates", False)),
-            hidden=bool(p.get("hidden", False)),
+            hidden=bool(p.get("hidden", False)), radar=bool(p.get("radar", True)),
         )
     if "free" not in plans:
         raise ValueError("plans.json: нужен тариф 'free'")

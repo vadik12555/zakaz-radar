@@ -1,4 +1,4 @@
-"""Feed polling, dedup, 14-day storage, Radar queue: PRO at once, FREE after 30 minutes, limits."""
+"""Feed polling, dedup, 14-day storage, Radar queue: subscribers at once, nobody else, limits."""
 
 from unittest.mock import patch
 
@@ -67,7 +67,7 @@ async def test_bootstrap_reads_category_feeds_once(tg, feed):
 
 
 async def _two_users(tg, feed):
-    """A FREE and a PRO user, both watching «Программирование» + «бот»."""
+    """A user without a subscription and a PRO user, both watching «Программирование» + «бот»."""
     feed.data = make_feed([{"id": 1, "title": "Старый бот"}])
     await tg.svc.orders.poll_once()
     free = tg
@@ -78,58 +78,49 @@ async def _two_users(tg, feed):
     return free, pro
 
 
-async def test_pro_gets_order_at_once_free_after_30_minutes(tg, feed):
+async def test_pro_gets_order_at_once_without_subscription_nothing(tg, feed):
     free, pro = await _two_users(tg, feed)
     feed.data = make_feed([{"id": 10, "title": "Telegram бот для записи", "budget": 15000},
                            {"id": 11, "title": "Логотип для кафе"}])
     r = await tg.svc.orders.poll_once()
-    assert r.new == 2 and r.queued == 2  # one matching order × two users
+    assert r.new == 2 and r.queued == 1  # only the subscriber is queued
     assert await deliver_due(tg.bot, tg.svc, pause=0) == 1
     (card,) = radar_cards(tg, 200)
     assert "Telegram бот для записи" in card.text and "15 000 ₽" in card.text
-    assert "PRO-пользователи" not in card.text
-    assert radar_cards(tg, free.user["id"]) == []  # FREE waits
-    # 30 minutes later
-    await tg.svc.db.execute("UPDATE orders SET fetched_at = ?", ago_iso(minutes=31))
-    await tg.svc.db.execute("UPDATE deliveries SET due_at = ? WHERE user_id = ?", ago_iso(minutes=1), free.user["id"])
-    assert await deliver_due(tg.bot, tg.svc, pause=0) == 1
-    (card,) = radar_cards(tg, free.user["id"])
-    assert "⚡ <i>PRO-пользователи получили этот заказ 31 минуту назад</i>" in card.text
-    assert any(b.text == "⚡ Получать заказы мгновенно" for b in card.buttons)
+    assert "PRO-пользователи" not in card.text and not any("Подключить" in b.text for b in card.buttons)
     assert await deliver_due(tg.bot, tg.svc, pause=0) == 0  # never twice
+    assert radar_cards(tg, free.user["id"]) == []  # Radar is for subscribers only
+    rows = await tg.svc.db.fetchall("SELECT d.due_at, o.fetched_at FROM deliveries d JOIN orders o ON o.id = d.order_id")
+    assert all(r["due_at"] == r["fetched_at"] for r in rows)  # no delay
 
 
-async def test_free_delay_is_30_minutes_in_queue(tg, feed):
-    free, pro = await _two_users(tg, feed)
-    feed.data = make_feed([{"id": 10, "title": "Бот"}])
-    await tg.svc.orders.poll_once()
-    rows = {r["user_id"]: r for r in await tg.svc.db.fetchall("SELECT d.user_id, d.due_at, o.fetched_at FROM deliveries d "
-                                                              "JOIN orders o ON o.id = d.order_id")}
-    from datetime import datetime
-    free_due = datetime.fromisoformat(rows[free.user["id"]]["due_at"])
-    fetched = datetime.fromisoformat(rows[free.user["id"]]["fetched_at"])
-    assert (free_due - fetched).total_seconds() == 30 * 60
-    assert rows[200]["due_at"] == rows[200]["fetched_at"]
-
-
-async def test_upgrade_releases_waiting_orders(tg, feed):
+async def test_subscription_turns_radar_on_and_expiry_stops_it(tg, feed):
     free, _ = await _two_users(tg, feed)
+    await tg.svc.billing.grant(free.user["id"], 7)  # radar_on was set at onboarding: it just starts working
     feed.data = make_feed([{"id": 10, "title": "Бот"}])
     await tg.svc.orders.poll_once()
-    await tg.svc.billing.grant(free.user["id"], 7)
     await deliver_due(tg.bot, tg.svc, pause=0)
     assert len(radar_cards(tg, free.user["id"])) == 1
+    feed.data = make_feed([{"id": 11, "title": "Бот два"}])
+    await tg.svc.orders.poll_once()
+    await tg.svc.db.execute("UPDATE subscriptions SET ends_at = ? WHERE user_id = ?", ago_iso(minutes=1),
+                            free.user["id"])  # expired before the card went out
+    await deliver_due(tg.bot, tg.svc, pause=0)
+    assert len(radar_cards(tg, free.user["id"])) == 1
+    assert await tg.svc.db.scalar("SELECT status FROM deliveries WHERE user_id = ? AND order_id = "
+                                  "(SELECT id FROM orders WHERE title = 'Бот два')", free.user["id"]) == "skipped"
 
 
-async def test_free_daily_limit_10_notifications(tg, feed):
-    free, _ = await _two_users(tg, feed)
+async def test_plan_daily_limit_still_works(tg, feed):
+    from dataclasses import replace
+    _, pro = await _two_users(tg, feed)
+    plans = tg.svc.settings.product.plans
+    plans["pro"] = replace(plans["pro"], notifications_per_day=10)
     feed.data = make_feed([{"id": 100 + i, "title": f"Бот {i}"} for i in range(12)])
     await tg.svc.orders.poll_once()
-    await tg.svc.db.execute("UPDATE deliveries SET due_at = ?", ago_iso(minutes=1))
     await deliver_due(tg.bot, tg.svc, pause=0)
-    assert len(radar_cards(tg, free.user["id"])) == 10
-    assert len(radar_cards(tg, 200)) == 12  # PRO: no limit
-    notes = [m for m in tg.session.messages.values() if m.chat_id == free.user["id"] and "лимит FREE" in m.text]
+    assert len(radar_cards(tg, 200)) == 10
+    notes = [m for m in tg.session.messages.values() if m.chat_id == 200 and "дневной лимит" in m.text]
     assert len(notes) == 1
 
 

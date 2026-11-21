@@ -20,7 +20,7 @@ CLEANUP_EVERY = 3600
 
 
 async def deliver_due(bot: Bot, svc: Services, pause: float = 0.05) -> int:
-    """Send Radar cards whose time has come. FREE: after the delay, at most N a day; quiet hours respected."""
+    """Send Radar cards whose time has come: subscribers only, plan delay and daily limit, quiet hours respected."""
     sent = 0
     now = now_iso()
     quiet_now = in_quiet_hours()
@@ -30,11 +30,11 @@ async def deliver_due(bot: Bot, svc: Services, pause: float = 0.05) -> int:
         if uid not in cache:
             cache[uid] = (await svc.db.get_user(uid), await svc.billing.access(uid))
         user, access = cache[uid]
-        if not user or not user.radar_on or user.blocked:
+        if not user or not user.radar_on or user.blocked or not access.plan.radar:
             await svc.orders.mark_delivery(uid, d["order_id"], "skipped")
             continue
         if not access.is_pro and d["due_at"] > now:
-            continue  # FREE: PRO users get it first
+            continue  # a delayed plan: not yet
         if user.quiet and quiet_now:
             await svc.orders.mark_delivery(uid, d["order_id"], "quiet")
             continue

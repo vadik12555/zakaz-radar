@@ -125,24 +125,28 @@ def _report(name, broken, labels):
 
 async def test_no_dead_buttons_free(tg, errors):
     await tg.svc.orders.poll_once()  # the real saved FL.ru feed (60 orders)
-    broken, labels = await crawl(tg, await tg.send("/start"), errors)  # onboarding → everything reachable
+    broken, labels = await crawl(tg, await tg.send("/start"), errors, skip=("Сбросить",))  # onboarding → all
     user = await tg.svc.db.get_user(tg.user["id"])
     assert user.onboarded
-    await tg.svc.db.update_user(tg.user["id"], categories=[5], keywords=["бот"], excludes=[], radar_on=1, quiet=0)
-    for start in (await tg.send("/start"), await _radar_card(tg, tg.user["id"])):
-        b2, l2 = await crawl(tg, start, errors)
-        broken, labels = broken + b2, labels | l2
+    await tg.svc.db.update_user(tg.user["id"], onboarded=0)  # onboarding once more: now «Сбросить» too
+    b1, l1 = await crawl(tg, await tg.send("/start"), errors)
+    broken, labels = broken + b1, labels | l1
+    await tg.svc.db.update_user(tg.user["id"], categories=[5], keywords=["бот"], excludes=[], radar_on=1, quiet=0,
+                                onboarded=1, min_budget=0, show_no_budget=1)
+    b2, l2 = await crawl(tg, await tg.send("/start"), errors)
+    broken, labels = broken + b2, labels | l2
     # free searches used up: the paywall and its payment buttons
     for i in range(3):
         await tg.svc.usage.charge(tg.user["id"], f"test-{i}")
     b3, l3 = await crawl(tg, await tg.send("/start"), errors)
     broken, labels = broken + b3, labels | l3
-    _report("FREE", broken, labels)
+    _report("БЕЗ ПОДПИСКИ", broken, labels)
     assert not broken
-    must = ["Далее ➡️", "Пропустить ➡️", "Любой", "🎁 3 бесплатных поиска", "🎯 По моим фильтрам", "✏️ Свой запрос",
-            "✍️ Шаблон отклика", "⭐ В избранное", "🙈 Скрыть похожие", "📡 Радар: вкл ✅", "⚙️ Фильтры",
-            "🔒 💰 Бюджет", "🌙 Тихие часы: выкл", "👤 Профиль", "✏️ Имя", "🔒 Свой шаблон отклика", "💎 PRO",
-            "⭐ PRO неделя — 49 ⭐", "⭐ PRO месяц — 149 ⭐", "⚡ Получать заказы мгновенно", "📊 Статистика",
+    must = ["Далее ➡️", "Пропустить ➡️", "Любой", "🎁 3 поиска бесплатно", "🎯 По моим фильтрам", "✏️ Свой запрос",
+            "✍️ Шаблон отклика", "⭐ В избранное", "🙈 Скрыть похожие", "📡 Радар: 🔒 по подписке", "⚙️ Фильтры",
+            "💰 Бюджет", "🌙 Тихие часы: выкл", "👤 Профиль", "✏️ Имя", "✍️ Мой шаблон отклика", "💎 Подписка",
+            "⭐ PRO неделя — 49 ⭐", "⭐ PRO месяц — 149 ⭐", "⭐ PRO год — 990 ⭐", "⚡ Подключить Радар — от 49 ⭐",
+            "📊 Статистика",
             "❓ Помощь", "💬 Написать в поддержку", "📄 Условия", "🔒 Конфиденциальность", "🔎 Поиск заказов"]
     missing = [m for m in must if m not in labels]
     assert not missing, missing
@@ -170,7 +174,7 @@ async def test_no_dead_buttons_pro(tg, errors):
             "✍️ Мой шаблон отклика", "✏️ Изменить", "↩️ Вернуть стандартный", "✍️ Шаблон отклика", "🙈 Скрыть похожие"]
     missing = [m for m in must if m not in labels]
     assert not missing, missing
-    trial = [t for t in labels if t.startswith("🎁") or "мгновенно" in t]  # FREE-only buttons
+    trial = [t for t in labels if t.startswith("🎁") or "Подключить" in t or "по подписке" in t]  # no-subscription buttons
     assert not trial, trial
 
 

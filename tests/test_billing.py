@@ -81,7 +81,7 @@ async def test_admin_has_pro_forever_without_payment(tg):
     await admin.svc.orders.poll_once()
     await onboard(admin)
     access = await admin.svc.billing.access(ADMIN)
-    assert access.is_admin and access.is_pro and access.ends_at is None and access.plan.code == "pro"
+    assert access.is_admin and access.is_pro and access.ends_at is None and access.plan.code == "pro_year"
     menu = await admin.press("Меню")
     labels = [b.text for b in menu.buttons]
     assert "💎 PRO · навсегда (админ)" in labels and "🔎 Поиск заказов" in labels

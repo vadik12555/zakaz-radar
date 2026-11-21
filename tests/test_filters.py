@@ -53,17 +53,22 @@ def _user(**kw):
     return User(**base)
 
 
-def test_free_plan_cuts_filters_pro_keeps_them():
+def test_filters_are_not_limited_without_subscription():
     import json
     user = _user(categories=json.dumps([5, 2, 3]), keywords=json.dumps(["a", "b", "c", "d"]),
                  excludes=json.dumps(["x"]), min_budget=30000, show_no_budget=0)
-    free = effective_filters(user, PRODUCT.plan("free"))
-    assert free.categories == [5] and free.keywords == ["a", "b", "c"]
-    assert free.min_budget == 0 and free.show_no_budget  # budget filter is PRO only
-    assert free.excludes == ["x"]
-    pro = effective_filters(user, PRODUCT.plan("pro"))
-    assert pro.categories == [5, 2, 3] and len(pro.keywords) == 4 and pro.min_budget == 30000
-    assert not pro.show_no_budget
+    for code in ("free", "pro_week", "pro", "pro_year"):
+        f = effective_filters(user, PRODUCT.plan(code))
+        assert f.categories == [5, 2, 3] and len(f.keywords) == 4 and f.min_budget == 30000
+        assert not f.show_no_budget and f.excludes == ["x"]
+
+
+def test_plans_free_is_three_searches_total_and_three_subscriptions():
+    free = PRODUCT.plan("free")
+    assert free.searches == 3 and not free.radar and not free.is_paid
+    assert [(p.title, p.price_stars, p.period_days) for p in PRODUCT.for_sale] == [
+        ("PRO неделя", 49, 7), ("PRO месяц", 149, 30), ("PRO год", 990, 365)]
+    assert all(p.radar and p.searches is None for p in PRODUCT.for_sale)
 
 
 def test_exclude_candidates_skip_known_and_stop_words():
