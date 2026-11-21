@@ -88,11 +88,11 @@ async def check_stale(bot: Bot, svc: Services, started_at: str) -> str | None:
     if minutes >= svc.settings.stale_minutes and alerted != last_ok:
         await svc.db.kv_set("stale_alerted", last_ok)
         err = await svc.db.kv_get("last_error") or "нет данных"
-        text = (f"🛰 <b>Лента FL.ru: нет данных {minutes} мин</b>\n\nПоследняя ошибка: <code>{views.h(err)}</code>\n"
+        text = (f"🛰 <b>Лента заказов: нет данных {minutes} мин</b>\n\nПоследняя ошибка: <code>{views.h(err)}</code>\n"
                 "Бот продолжает пробовать с увеличивающейся паузой. Статус: /admin")
     elif minutes < svc.settings.stale_minutes and alerted and alerted != "ok":
         await svc.db.kv_set("stale_alerted", "ok")
-        text = "✅ Лента FL.ru снова отвечает, заказы идут."
+        text = "✅ Лента заказов снова отвечает, заказы идут."
     if text:
         for admin in svc.settings.admin_ids:
             try:

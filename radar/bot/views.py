@@ -133,7 +133,7 @@ def order_buttons(orders: list[dict], src: str, ref: int, page: int, start: int 
 def main_menu(user: User, access: Access, remaining: int | None, filters) -> Screen:
     radar = radar_label(user, access)
     delay = access.plan.radar_delay_min if access.plan.radar else 0
-    text = (f"📡 <b>ЗаказРадар</b> — свежие заказы с FL.ru под твои фильтры\n\n"
+    text = (f"📡 <b>ЗаказРадар</b> — свежие заказы для фрилансеров под твои фильтры\n\n"
             f"📂 {h(cats_label(filters.categories))}\n"
             f"🔑 {words_label(filters.keywords, 'без ключевых слов')}\n"
             f"💰 {budget_label(filters.min_budget, filters.show_no_budget)}\n"
@@ -231,7 +231,7 @@ def order_card(o: dict, src: str, ref: int, page: int, fav: bool, can_hide: bool
         text += f"\n\n⚡ <i>PRO-пользователи получили этот заказ {late_min} {plural(late_min, 'минуту', 'минуты', 'минут')} назад</i>"
     oc = dict(id=o["id"], src=src, ref=ref, page=page)
     return text, kb(
-        [url_btn("🔗 Открыть на FL.ru", o["link"])],
+        [url_btn("🔗 Открыть заказ", o["link"])],
         [b("✍️ Шаблон отклика", Ord(**oc, a="tpl")),
          b("✅ В избранном" if fav else "⭐ В избранное", Ord(**oc, a="fav"))],
         [b("🙈 Скрыть похожие", Ord(**oc, a="hide"))] if can_hide else None,
@@ -247,7 +247,7 @@ def order_gone(src: str, ref: int, page: int) -> Screen:
 def response_screen(o: dict, text: str, oc: dict, profile_empty: bool) -> Screen:
     can_copy = len(text) <= COPY_LIMIT
     hint = ("\n\n💡 Заполни 👤 Профиль: имя, опыт и портфолио подставятся сами." if profile_empty else "")
-    note = ("Нажми «📋 Скопировать» и вставь текст в отклик на FL.ru." if can_copy else
+    note = ("Нажми «📋 Скопировать» и вставь текст в отклик на заказ." if can_copy else
             "Текст длиннее 256 символов, поэтому кнопки копирования нет: нажми на текст, и он скопируется.")
     return (f"✍️ <b>Отклик на заказ</b>\n«{h(short(o['title'], 80))}»\n\n<code>{h(text)}</code>\n\n{note}{hint}",
             kb([copy_btn("📋 Скопировать", text)] if can_copy else None,
@@ -315,7 +315,7 @@ def pay_buttons(plans: list[Plan]) -> list[list[Btn]]:
     return [[b(f"⭐ {p.title} — {p.price_stars} ⭐", Pay(plan=p.code), SUCCESS)] for p in plans]
 
 
-PRO_PERKS = ("📡 Радар — новые заказы под твои фильтры сами приходят в чат, сразу как появились на FL.ru\n"
+PRO_PERKS = ("📡 Радар — новые заказы под твои фильтры сами приходят в чат, сразу как появились\n"
              "🔎 Безлимитный поиск по базе за 14 дней\n"
              "🔔 Уведомления без лимита, тихие часы по желанию")
 
@@ -368,7 +368,7 @@ def free_template_locked() -> Screen:
 
 def invoice_texts(plan: Plan) -> tuple[str, str]:
     return (f"ЗаказРадар {plan.title}",
-            f"PRO на {plan.period_days} дн.: Радар — новые заказы FL.ru сразу в чат, безлимитный поиск.")
+            f"PRO на {plan.period_days} дн.: Радар — новые заказы сразу в чат, безлимитный поиск.")
 
 
 def payment_ok(plan: Plan, ends_at: str) -> Screen:
@@ -487,12 +487,12 @@ def stats_screen(s: dict) -> Screen:
 
 def help_screen() -> Screen:
     return ("❓ <b>Как это работает</b>\n\n"
-            "Бот каждые 2–3 минуты читает ленту новых заказов FL.ru и сравнивает их с твоими фильтрами.\n\n"
+            "Бот каждые 2–3 минуты проверяет новые заказы и сравнивает их с твоими фильтрами.\n\n"
             "📡 <b>Радар</b> — присылает подходящие заказы сам.\n"
             "🔎 <b>Поиск</b> — ищет по заказам за последние 14 дней.\n"
             "⚙️ <b>Фильтры</b> — категории, слова, исключения, бюджет, тихие часы.\n"
-            "✍️ <b>Шаблон отклика</b> — готовый текст, который ты сам отправляешь на FL.ru.\n\n"
-            "Бот ничего не отправляет на FL.ru за тебя и не связан с FL.ru официально.",
+            "✍️ <b>Шаблон отклика</b> — готовый текст, который ты сам отправляешь заказчику.\n\n"
+            "Бот ничего не отправляет за тебя: отклик ты пишешь и отправляешь сам.",
             kb([b("💬 Написать в поддержку", Menu(to="support"))],
                [b("📄 Условия", Menu(to="terms")), b("🔒 Конфиденциальность", Menu(to="privacy"))],
                [home_btn()]))
@@ -500,13 +500,13 @@ def help_screen() -> Screen:
 
 def terms_screen(contact: str) -> Screen:
     return ("📄 <b>Условия использования</b>\n\n"
-            "1. Бот показывает заказы из публичной RSS-ленты FL.ru. Мы не отвечаем за содержание заказов и не "
+            "1. Бот показывает заказы из открытых источников. Мы не отвечаем за содержание заказов и не "
             "гарантируем, что заказчик выберет тебя.\n"
-            "2. Бот ничего не отправляет на FL.ru: отклик ты пишешь и отправляешь сам.\n"
+            "2. Бот ничего не отправляет за тебя: отклик ты пишешь и отправляешь сам.\n"
             "3. PRO оплачивается звёздами Telegram на 7, 30 или 365 дней, без автопродления. Повторная покупка добавляет дни.\n"
             "4. Возврат — по обращению в /support"
             + (f" или {h(contact)}" if contact else "") + ", если доступ не работал по нашей вине.\n"
-            "5. Сервис предоставляется «как есть»; лента FL.ru может временно не отвечать.",
+            "5. Сервис предоставляется «как есть»; источник заказов может временно не отвечать.",
             kb([b("← Помощь", Menu(to="help")), home_btn()]))
 
 
@@ -549,7 +549,7 @@ def admin_screen(ov: dict, status: dict, stale_min: int | None, poll_seconds: in
             f"⭐ Получено звёзд всего: {ov['stars']}\n"
             f"📥 Новых заказов за сутки: {ov['orders_day']} · в базе: {ov['orders']}\n"
             f"📡 Уведомлений за сутки: {ov['sent_day']}\n\n"
-            f"🛰 Лента FL.ru (раз в {poll_seconds // 60}–{poll_seconds // 60 + 1} мин): {feed}{err}\n\n"
+            f"🛰 Лента заказов (раз в {poll_seconds // 60}–{poll_seconds // 60 + 1} мин): {feed}{err}\n\n"
             f"📈 Воронка: {funnel}\n\n"
             "Команды: /grant ID ДНЕЙ · /refund CHARGE_ID · /user ID · /broadcast ТЕКСТ",
             kb([b("🔄 Обновить", Adm(act="home"), PRIMARY)], [home_btn()]))
