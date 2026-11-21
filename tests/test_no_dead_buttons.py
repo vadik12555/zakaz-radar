@@ -202,7 +202,7 @@ async def test_old_buttons_after_restart_still_answer(tg, errors):
     msg = await tg.send("/start")
     expected = {Ord(id=10**9, src="s", ref=5, page=0).pack(): "уже нет в базе",
                 Res(sid=10**9).pack(): "устарели",
-                "garbage:1": "ЗаказРадар"}
+                "garbage:1": "ZakazHunt"}
     for data, text in expected.items():
         n_req = len(tg.session.requests)
         await _press(tg, msg, InlineKeyboardButton(text="old", callback_data=data))

@@ -93,7 +93,7 @@ class AdminAlertHandler(logging.Handler):
             lines = [first]
             while not self.queue.empty():
                 lines.append(self.queue.get_nowait())
-            text = (f"🧯 <b>ЗаказРадар: ошибки ({len(lines)})</b>\n\n"
+            text = (f"🧯 <b>ZakazHunt: ошибки ({len(lines)})</b>\n\n"
                     + "\n".join(f"<code>{escape(x)}</code>" for x in lines[-5:]))
             for admin_id in admin_ids:
                 try:
@@ -187,7 +187,7 @@ async def run_polling(settings: Settings) -> int:
         if settings.admin_ids:
             ALERTS.attach(asyncio.get_running_loop())
             tasks.append(asyncio.create_task(ALERTS.run(bot, settings.admin_ids)))
-        log.info("ЗаказРадар запущен как @%s · оплата Stars: %s · админов: %s", me.username,
+        log.info("ZakazHunt запущен как @%s · оплата Stars: %s · админов: %s", me.username,
                  "вкл" if settings.payments_enabled else "выкл", len(settings.admin_ids) or "не заданы")
         await bot.delete_webhook(drop_pending_updates=False)
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types(),
@@ -199,4 +199,4 @@ async def run_polling(settings: Settings) -> int:
             t.cancel()
         await bot.session.close()
         await db.close()
-        log.info("ЗаказРадар остановлен")
+        log.info("ZakazHunt остановлен")

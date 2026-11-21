@@ -133,7 +133,7 @@ def order_buttons(orders: list[dict], src: str, ref: int, page: int, start: int 
 def main_menu(user: User, access: Access, remaining: int | None, filters) -> Screen:
     radar = radar_label(user, access)
     delay = access.plan.radar_delay_min if access.plan.radar else 0
-    text = (f"📡 <b>ЗаказРадар</b> — свежие заказы для фрилансеров под твои фильтры\n\n"
+    text = (f"📡 <b>ZakazHunt</b> — свежие заказы для фрилансеров под твои фильтры\n\n"
             f"📂 {h(cats_label(filters.categories))}\n"
             f"🔑 {words_label(filters.keywords, 'без ключевых слов')}\n"
             f"💰 {budget_label(filters.min_budget, filters.show_no_budget)}\n"
@@ -367,7 +367,7 @@ def free_template_locked() -> Screen:
 
 
 def invoice_texts(plan: Plan) -> tuple[str, str]:
-    return (f"ЗаказРадар {plan.title}",
+    return (f"ZakazHunt {plan.title}",
             f"PRO на {plan.period_days} дн.: Радар — новые заказы сразу в чат, безлимитный поиск.")
 
 
